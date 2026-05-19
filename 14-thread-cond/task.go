@@ -14,12 +14,24 @@ func NewDonation() *Donation {
 }
 
 func (d *Donation) Add(amount int) {
+	d.cond.L.Lock()
+	d.balance += amount
+	d.cond.L.Unlock()
+	d.cond.Broadcast()
 }
 
 func (d *Donation) WaitForGoal(goal int) int {
-	return 0
+	d.cond.L.Lock()
+	defer d.cond.L.Unlock()
+
+	for d.balance < goal {
+		d.cond.Wait()
+	}
+	return d.balance
 }
 
 func (d *Donation) Balance() int {
-	return 0
+	d.cond.L.Lock()
+	defer d.cond.L.Unlock()
+	return d.balance
 }

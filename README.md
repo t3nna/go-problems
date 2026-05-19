@@ -33,6 +33,10 @@ Here is a list of the problems available in the repository. Problems are organiz
 * [Rate Tracker](13-rate-tracker/)
 * [Thread Cond](14-thread-cond/)
 
+### Design Patterns
+
+* [Stock Price Feed Observer](15-stock-price-feed-observer/)
+
 ## Contributing
 
 We welcome contributions from anyone looking to add more problems, improve solutions, or provide better documentation. Please refer to 
