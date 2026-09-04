@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
-	"sync"
 )
 
 type Getter interface {
@@ -17,56 +15,45 @@ func Get(ctx context.Context, getter Getter, addresses []string, key string) (st
 	if len(addresses) == 0 {
 		return "", nil
 	}
-	if ctx.Err() != nil {
-		return "", errors.New("")
-	}
 
-	ctxCancel, cancel := context.WithCancel(ctx)
-
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	errorCh := make(chan error, len(addresses))
-	valCh := make(chan string, len(addresses))
+	errCh := make(chan error, len(addresses))
+	resCh := make(chan string, 1)
 
-	var wg sync.WaitGroup
-	go func() {
-		wg.Wait()
-		close(errorCh)
-		close(valCh)
-	}()
-
-	for _, address := range addresses {
-		wg.Add(1)
+	for _, addr := range addresses {
 		go func(addr string) {
-
-			defer wg.Done()
-
-			val, err := getter.Get(ctxCancel, addr, key)
+			res, err := getter.Get(ctx, addr, key)
 
 			if err != nil {
-				errorCh <- err
-				return
+				errCh <- err
+			} else {
+				select {
+				case resCh <- res:
+				default:
+
+				}
 			}
 
-			valCh <- val
+		}(addr)
 
-		}(address)
 	}
 
 	errCount := 0
+
 	for {
 		select {
-		case val := <-valCh:
-			cancel()
-			return val, nil
-		case <-errorCh:
+		case val := <-errCh:
 			errCount++
 			if errCount == len(addresses) {
-				return "", errors.New("not found")
+				return "", val
 			}
-		case <-ctxCancel.Done():
-			return "", ctxCancel.Err()
+		case <-ctx.Done():
+			return "", context.Canceled
+		case res := <-resCh:
+			return res, nil
 		}
-
 	}
+
 }
