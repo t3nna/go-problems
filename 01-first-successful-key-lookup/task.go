@@ -19,41 +19,39 @@ func Get(ctx context.Context, getter Getter, addresses []string, key string) (st
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	errCh := make(chan error, len(addresses))
 	resCh := make(chan string, 1)
+	errCh := make(chan error, len(addresses))
 
-	for _, addr := range addresses {
-		go func(addr string) {
-			res, err := getter.Get(ctx, addr, key)
-
+	for _, val := range addresses {
+		go func(s string) {
+			res, err := getter.Get(ctx, s, key)
 			if err != nil {
 				errCh <- err
-			} else {
-				select {
-				case resCh <- res:
-				default:
-
-				}
+				return
 			}
+			select {
 
-		}(addr)
-
+			case resCh <- res:
+			default:
+			}
+		}(val)
 	}
 
-	errCount := 0
-
+	errCounter := 0
 	for {
 		select {
-		case val := <-errCh:
-			errCount++
-			if errCount == len(addresses) {
-				return "", val
-			}
 		case <-ctx.Done():
 			return "", context.Canceled
-		case res := <-resCh:
-			return res, nil
+
+		case v := <-errCh:
+			errCounter++
+			if errCounter == len(addresses) {
+				return "", v
+			}
+		case r := <-resCh:
+			return r, nil
 		}
+
 	}
 
 }
