@@ -15,4 +15,7 @@ func main() {
 	fmt.Printf("%v, %v\n", len(s2), cap(s2))
 
 	fmt.Println(s4)
+
+	s5 := append([]int(nil), s4...)
+	fmt.Println(s5)
 }
