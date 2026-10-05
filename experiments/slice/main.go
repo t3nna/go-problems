@@ -19,4 +19,6 @@ func main() {
 	s5 := append([]int(nil), s4...)
 	fmt.Println(s5)
 	fmt.Println("Trying Zed")
+	fmt.Println("one more try")
+
 }
