@@ -1,15 +1,17 @@
 package main
 
-import "sync"
+import (
+	"sync"
+)
 
 type Client interface {
 	Get(address string) (string, error)
 }
 
 type task struct {
-	body  string
-	err   error
-	ready chan struct{}
+	body    string
+	err     error
+	isReady chan struct{}
 }
 
 type Cache struct {
@@ -30,18 +32,22 @@ func NewCache(client Client) *Cache {
 // Cache Client.Get result
 func (c *Cache) Get(address string) (string, error) {
 	// TODO: Implement. Right now it doesn't cache
-	c.mu.Lock()
-	res := c.cache[address]
-	if res == nil {
-		res = &task{ready: make(chan struct{})}
-		c.cache[address] = res
-		c.mu.Unlock()
 
-		res.body, res.err = c.client.Get(address)
-		close(res.ready)
+	c.mu.Lock()
+	v := c.cache[address]
+
+	if v == nil {
+		t := &task{isReady: make(chan struct{})}
+		c.cache[address] = t
+		c.mu.Unlock()
+		v = t
+		res, err := c.client.Get(address)
+		v.body = res
+		v.err = err
+		close(v.isReady)
 	} else {
 		c.mu.Unlock()
-		<-res.ready
+		<-v.isReady
 	}
-	return res.body, res.err
+	return v.body, v.err
 }
