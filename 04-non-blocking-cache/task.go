@@ -24,30 +24,37 @@ type Cache struct {
 // Don't update signature of NewCache
 func NewCache(client Client) *Cache {
 	// TODO: Implement
-	return &Cache{client: client,
-		cache: make(map[string]*task),
+	return &Cache{
+		cache:  make(map[string]*task),
+		client: client,
 	}
 }
 
 // Cache Client.Get result
 func (c *Cache) Get(address string) (string, error) {
-	// TODO: Implement. Right now it doesn't cache
-
 	c.mu.Lock()
-	v := c.cache[address]
+	ent := c.cache[address]
 
-	if v == nil {
-		t := &task{isReady: make(chan struct{})}
+	if ent == nil {
+		t := &task{
+			isReady: make(chan struct{}),
+		}
 		c.cache[address] = t
 		c.mu.Unlock()
-		v = t
-		res, err := c.client.Get(address)
-		v.body = res
-		v.err = err
-		close(v.isReady)
+
+		v, err := c.client.Get(address)
+
+		t.body = v
+		t.err = err
+
+		close(t.isReady)
+
+		return v, err
 	} else {
+
+		<-ent.isReady
 		c.mu.Unlock()
-		<-v.isReady
+		return ent.body, ent.err
 	}
-	return v.body, v.err
+
 }
