@@ -1,9 +1,6 @@
 package main
 
-import (
-	"fmt"
-	"sync"
-)
+import "sync"
 
 type Connection interface {
 	// Need call Connect before Send
@@ -33,35 +30,33 @@ type Saver interface {
 // Responses must be saved using Saver.Save.
 // Be careful: Saver.Save is not safe for concurrent use.
 func SendAndSave(creator ConnectionCreator, saver Saver, requests []string, maxConn int) {
-
-	// we need to close this channels
 	reqCh, resCh := make(chan string, len(requests)), make(chan string, len(requests))
+
 	var wg sync.WaitGroup
 
 	for _, v := range requests {
 		reqCh <- v
 	}
 	close(reqCh)
-
 	wg.Add(maxConn)
+
 	for range maxConn {
 		go func() {
+
 			conn, err := creator.NewConnection()
 			if err != nil {
 				return
 			}
-
 			conn.Connect()
 			defer conn.Disconnect()
-			fmt.Println(reqCh)
 
 			for v := range reqCh {
-				r, err := conn.Send(v)
+
+				str, err := conn.Send(v)
 				if err != nil {
 					continue
 				}
-				fmt.Println(r)
-				resCh <- r
+				resCh <- str
 			}
 			wg.Done()
 		}()
