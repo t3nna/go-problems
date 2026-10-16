@@ -13,30 +13,27 @@ type Getter interface {
 // Returns the first successful response.
 // If all requests fail, returns an error.
 func Get(ctx context.Context, getter Getter, addresses []string, key string) (string, error) {
-
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	if len(addresses) == 0 {
 		return "", nil
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	resCh, errCh := make(chan string, len(addresses)), make(chan error, len(addresses))
 
-	errCh := make(chan error, len(addresses))
-	resCh := make(chan string, len(addresses))
 	var wg sync.WaitGroup
 
 	wg.Add(len(addresses))
 
 	for _, v := range addresses {
-
-		go func(s string) {
-			res, err := getter.Get(ctx, s, key)
+		go func(addr string) {
+			res, err := getter.Get(ctx, addr, key)
 			if err != nil {
 				errCh <- err
 			} else {
-
 				resCh <- res
 			}
+
 			wg.Done()
 		}(v)
 
@@ -44,25 +41,23 @@ func Get(ctx context.Context, getter Getter, addresses []string, key string) (st
 
 	go func() {
 		wg.Wait()
-		close(errCh)
 		close(resCh)
+		close(errCh)
 	}()
 
-	errCount := 0
-
+	errCounter := 0
 	for {
 		select {
-		case v := <-errCh:
-			errCount++
-			if errCount == len(addresses) {
-				return "", v
-			}
 		case <-ctx.Done():
 			return "", ctx.Err()
+		case v := <-errCh:
+			errCounter++
+			if errCounter == len(addresses) {
+				return "", v
+			}
 		case v := <-resCh:
 			return v, nil
 
 		}
 	}
-
 }
