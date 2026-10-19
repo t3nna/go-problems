@@ -1,14 +1,36 @@
 package main
 
-import "errors"
-
-type Order struct{ SubtotalCents, WeightGrams int }
-type ShippingStrategy interface{ ShippingCost(Order) (int, error) }
-type Checkout struct{ strategy ShippingStrategy }
-
-func NewCheckout(ShippingStrategy) (*Checkout, error) {
-	return &Checkout{}, nil
+// ShippingStrategy is the part of checkout that may vary.
+type ShippingStrategy interface {
+	ShippingCost() int
 }
-func (c *Checkout) Total(Order) (int, error) { return 0, errors.New("TODO: calculate total") }
-func FlatRate(int) ShippingStrategy          { return nil }
-func WeightBased(int, int) ShippingStrategy  { return nil }
+
+type Checkout struct {
+	shipping ShippingStrategy
+}
+
+func NewCheckout(s ShippingStrategy) Checkout {
+
+	check := Checkout{
+		shipping: s,
+	}
+
+	return check
+}
+
+func (c Checkout) Total(subtototal int) int {
+	sum := subtototal + c.shipping.ShippingCost()
+	return sum
+}
+
+// FlatRate charges the same amount for every order.
+type FlatRate struct {
+	Cents int
+}
+
+func (r FlatRate) ShippingCost() int { return r.Cents }
+
+// FreeShipping always charges nothing.
+type FreeShipping struct{}
+
+func (FreeShipping) ShippingCost() int { return 0 }

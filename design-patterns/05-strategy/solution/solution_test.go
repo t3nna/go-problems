@@ -3,31 +3,29 @@ package main
 import "testing"
 
 func TestCheckoutUsesFlatRateStrategy(t *testing.T) {
-	checkout, err := NewCheckout(FlatRate(500))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := checkout.Total(Order{SubtotalCents: 1500, WeightGrams: 1})
-	if err != nil || got != 2000 {
-		t.Fatalf("total=%d err=%v", got, err)
+	checkout := NewCheckout(FlatRate{Cents: 500})
+
+	if got := checkout.Total(1500); got != 2000 {
+		t.Fatalf("Total() = %d, want 2000", got)
 	}
 }
-func TestCheckoutUsesWeightBasedStrategy(t *testing.T) {
-	checkout, err := NewCheckout(WeightBased(200, 75))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := checkout.Total(Order{SubtotalCents: 1000, WeightGrams: 1001})
-	if err != nil || got != 1350 {
-		t.Fatalf("total=%d err=%v", got, err)
+
+func TestCheckoutUsesFreeShippingStrategy(t *testing.T) {
+	checkout := NewCheckout(FreeShipping{})
+
+	if got := checkout.Total(1500); got != 1500 {
+		t.Fatalf("Total() = %d, want 1500", got)
 	}
 }
-func TestCheckoutRejectsInvalidInputs(t *testing.T) {
-	if _, err := NewCheckout(nil); err == nil {
-		t.Fatal("expected error")
-	}
-	checkout, _ := NewCheckout(FlatRate(100))
-	if _, err := checkout.Total(Order{SubtotalCents: -1}); err == nil {
-		t.Fatal("expected error")
+
+func TestCheckoutUsesCustomStrategy(t *testing.T) {
+	checkout := NewCheckout(shippingCost(250))
+
+	if got := checkout.Total(1500); got != 1750 {
+		t.Fatalf("Total() = %d, want 1750", got)
 	}
 }
+
+type shippingCost int
+
+func (cost shippingCost) ShippingCost() int { return int(cost) }

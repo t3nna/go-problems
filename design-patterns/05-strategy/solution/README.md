@@ -2,16 +2,23 @@
 
 ## Intent
 
-The Strategy pattern defines a family of algorithms behind one interface and lets the caller select one. Checkout owns the stable workflow; a `ShippingStrategy` owns the variable shipping rule.
+The Strategy pattern lets one part of an algorithm vary independently. Here, checkout always calculates `subtotal + shipping`, while the shipping rule is selected by the caller.
 
 ## Go mapping
 
-The solution uses a small interface and the `shippingStrategyFunc` adapter, allowing constructor functions to return strategies without exported concrete types. `Checkout.Total` has no knowledge of flat or weight-based pricing.
+`ShippingStrategy` is a one-method interface. `FlatRate` and `FreeShipping` are ordinary small values that implement it. `Checkout` stores the interface and calls `ShippingCost`; it does not check which concrete strategy it received.
 
-## Why use it
+```go
+checkout := NewCheckout(FreeShipping{})
+total := checkout.Total(1500) // 1500
+```
 
-Use Strategy when one policy changes independently from the code that invokes it: pricing, authorization, serialization, sorting, retry rules, and feature rollout logic are common examples.
+The custom-strategy test is the important part: a new type can implement `ShippingCost` and work with checkout without changing checkout code.
+
+## When to use it
+
+Use Strategy when a policy varies: discounts, tax rules, sorting, authorization, retry decisions, or serialization choices. The caller chooses the policy, while the context owns the workflow that uses it.
 
 ## Trade-offs
 
-Strategies add an abstraction and validation boundary. They are worthwhile when variations are real or expected, not simply to avoid one small conditional. The explicit constructor functions keep the public API easy to read at the call site.
+This deliberately small example assumes valid subtotals and a non-nil strategy so the pattern stays visible. In production, validate those values at the API boundary. Do not introduce a strategy interface for a policy that will never vary; a direct function is clearer in that case.
