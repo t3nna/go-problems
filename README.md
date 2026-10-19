@@ -35,6 +35,15 @@ Here is a list of the problems available in the repository. Problems are organiz
 
 ### Design Patterns
 
+* [Go Design Patterns Practice Collection](design-patterns/)
+* [Builder with Functional Options](design-patterns/01-builder/)
+* [Factory](design-patterns/02-factory/)
+* [Adapter](design-patterns/03-adapter/)
+* [Decorator](design-patterns/04-decorator/)
+* [Strategy](design-patterns/05-strategy/)
+* [Command](design-patterns/06-command/)
+* [Observer](design-patterns/07-observer/)
+* [Chain of Responsibility](design-patterns/08-chain-of-responsibility/)
 * [Stock Price Feed Observer](15-stock-price-feed-observer/)
 
 ## Contributing
