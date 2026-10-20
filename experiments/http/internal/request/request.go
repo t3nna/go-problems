@@ -1,9 +1,9 @@
 package request
 
 import (
-	"bytes"
 	"fmt"
 	"io"
+	"strings"
 )
 
 type RequestLine struct {
@@ -16,23 +16,40 @@ type Request struct {
 	RequestLine RequestLine
 }
 
-func parseRequestLine(buf []byte, req *Request) (int, error) {
-	idx := bytes.Index(buf, []byte{'\r', '\n'})
+var ERROR_BAD_START_LINE = fmt.Errorf("bad request line")
+var ERROR_BAD_HTTP_STATUS = fmt.Errorf("bad http status")
+var SEPARATOR = "\r\n"
+
+func parseRequestLine(b string) (*RequestLine, string, error) {
+	idx := strings.Index(b, SEPARATOR)
+
 	if idx == -1 {
-		return 0, fmt.Errorf("error")
-	}
-	line := buf[:idx]
-
-	reqLineArr := bytes.Split(line, []byte{' '})
-	if len(reqLineArr) != 3 {
-		return 0, fmt.Errorf("error")
+		return nil, "", ERROR_BAD_START_LINE
 	}
 
-	req.RequestLine.Method = string(reqLineArr[0])
-	req.RequestLine.RequestTarget = string(reqLineArr[1])
-	req.RequestLine.HttpVersion = string(bytes.Split(reqLineArr[2], []byte{'/'})[1])
-	return idx, nil
+	strartLine := b[:idx]
+	restMsg := b[idx+len(SEPARATOR):]
 
+	parts := strings.Split(strartLine, " ")
+
+	if len(parts) != 3 {
+		return nil, "", ERROR_BAD_START_LINE
+	}
+
+	httpsVersionParts := strings.Split(parts[2], "/")
+	if len(httpsVersionParts) != 2 || httpsVersionParts[0] != "HTTP" || httpsVersionParts[1] != "1.1" {
+		return nil, "", ERROR_BAD_HTTP_STATUS
+	}
+
+	rl := &RequestLine{
+		Method:        parts[0],
+		RequestTarget: parts[1],
+		HttpVersion:   httpsVersionParts[1],
+	}
+
+	return rl,
+		restMsg,
+		nil
 }
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
@@ -40,13 +57,13 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	req := &Request{
-		RequestLine: RequestLine{},
-	}
-
-	_, err = parseRequestLine(buf, req)
+	line, _, err := parseRequestLine(string(buf))
 	if err != nil {
 		return nil, err
+	}
+
+	req := &Request{
+		RequestLine: *line,
 	}
 
 	return req, nil
