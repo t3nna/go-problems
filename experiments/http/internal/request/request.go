@@ -20,6 +20,13 @@ var ERROR_BAD_START_LINE = fmt.Errorf("bad request line")
 var ERROR_BAD_HTTP_STATUS = fmt.Errorf("bad http status")
 var SEPARATOR = "\r\n"
 
+type parserState string
+
+const (
+	StateInit parserState = "init"
+	StateDone parserState = "done"
+)
+
 func parseRequestLine(b string) (*RequestLine, string, error) {
 	idx := strings.Index(b, SEPARATOR)
 
