@@ -19,6 +19,9 @@ var ErrRequestsFailed = errors.New("task execution failed")
 // 3. Return the first successful response, or all ErrRequestsFailed if all nodes fail
 // 4. Properly handle context cancellation throughout the process
 func RequestWithFailover(ctx context.Context, client Client, addresses []string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	errCh := make(chan error, len(addresses))
 	resCh := make(chan string, len(addresses))
 
@@ -27,16 +30,17 @@ func RequestWithFailover(ctx context.Context, client Client, addresses []string)
 	for i := 0; i < len(addresses); i++ {
 		v := addresses[i]
 		innerCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-		defer cancel()
 
 		go func() {
-			str, err := client.Get(innerCtx, v)
+			str, err := client.Get(ctx, v)
 			if err != nil {
 				errCh <- err
 			} else {
 				resCh <- str
 			}
 		}()
+
+		defer cancel()
 
 		select {
 		case <-innerCtx.Done():
@@ -50,6 +54,7 @@ func RequestWithFailover(ctx context.Context, client Client, addresses []string)
 		case <-errCh:
 			errCount++
 		}
+
 		fmt.Println("innner", v)
 
 	}
