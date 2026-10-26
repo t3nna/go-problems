@@ -33,26 +33,25 @@ func NewCache(client Client) *Cache {
 // Cache Client.Get result
 func (c *Cache) Get(address string) (string, error) {
 	c.mu.Lock()
-	val := c.cache[address]
+	t := c.cache[address]
 
-	if val == nil {
-		t := &task{
-			isReady: make(chan struct{}),
-		}
+	if t == nil {
+		t = &task{isReady: make(chan struct{})}
 		c.cache[address] = t
-		val = t
-		c.mu.Unlock()
 
-		v, err := c.client.Get(address)
-		t.body = v
+		res, err := c.client.Get(address)
+
+		t.body = res
 		t.err = err
+		c.mu.Unlock()
 
 		close(t.isReady)
-		return v, err
-	} else {
-		<-val.isReady
-		c.mu.Unlock()
-		return val.body, val.err
-	}
 
+		return res, err
+	}
+	c.mu.Unlock()
+
+	<-t.isReady
+
+	return t.body, t.err
 }
