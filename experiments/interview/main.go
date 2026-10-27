@@ -2,30 +2,52 @@ package main
 
 import "fmt"
 
-type DS struct {
-	arr []int
+type Opts struct {
+	ip      string
+	domain  string
+	maxConn int
+	withTLS bool
 }
 
-func (d *DS) even() []int {
-	res := make([]int, 0, len(d.arr))
+type OptFunc func(*Opts)
 
-	for _, v := range d.arr {
+func withTls(o *Opts) {
+	o.withTLS = true
+}
 
-		if v%2 == 0 {
-			res = append(res, 0)
-		} else {
-
-			res = append(res, 1)
-		}
+func setMaxConn(n int) OptFunc {
+	return func(o *Opts) {
+		o.maxConn = n
 	}
-	return res
+}
+
+type Server struct {
+	Opts
+}
+
+func defaultOpts() Opts {
+	return Opts{
+		ip:      "0.0.0.0",
+		domain:  "",
+		maxConn: 10,
+		withTLS: false,
+	}
+}
+
+func newServer(opts ...OptFunc) *Server {
+	o := defaultOpts()
+
+	for _, fn := range opts {
+		fn(&o)
+	}
+
+	return &Server{
+		Opts: o,
+	}
 }
 
 func main() {
-	ds := DS{
-		arr: []int{-22, -1, 0, 12, 22},
-	}
-
-	fmt.Println(ds.even())
+	s := newServer(withTls, setMaxConn(154))
+	fmt.Printf("%+v", s)
 
 }
