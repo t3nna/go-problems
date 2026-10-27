@@ -3,10 +3,34 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"http/primagen/internal/request"
 	"io"
 	"log"
 	"net"
 )
+
+func main() {
+
+	listener, err := net.Listen("tcp", ":42069")
+	if err != nil {
+		log.Fatalf("error", "error", err)
+	}
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Fatalf("error", "error", err)
+		}
+
+		req, err := request.RequestFromReader(conn)
+		if err != nil {
+			log.Fatalf("error", "error", err)
+		}
+
+		fmt.Printf("Request line:\n- Method: %s\n- Target: %s\n- Version: %s\n", req.RequestLine.Method, req.RequestLine.RequestTarget, req.RequestLine.HttpVersion)
+	}
+
+}
 
 func getLinesChannel(f io.ReadCloser) <-chan string {
 	out := make(chan string, 1)
@@ -37,25 +61,4 @@ func getLinesChannel(f io.ReadCloser) <-chan string {
 	}()
 
 	return out
-}
-
-func main() {
-
-	listener, err := net.Listen("tcp", ":42069")
-	if err != nil {
-		log.Fatalf("error", "error", err)
-	}
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Fatalf("error", "error", err)
-		}
-
-		for line := range getLinesChannel(conn) {
-			fmt.Printf("read: %s\n", line)
-
-		}
-	}
-
 }
