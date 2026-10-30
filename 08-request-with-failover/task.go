@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -19,61 +18,61 @@ var ErrRequestsFailed = errors.New("task execution failed")
 // 3. Return the first successful response, or all ErrRequestsFailed if all nodes fail
 // 4. Properly handle context cancellation throughout the process
 func RequestWithFailover(ctx context.Context, client Client, addresses []string) (string, error) {
-	if err := ctx.Err(); err != nil {
-		return "", err
+	if ctx.Err() != nil {
+		return "", ctx.Err()
 	}
-	errCh := make(chan error, len(addresses))
+
 	resCh := make(chan string, len(addresses))
+	errCh := make(chan error, len(addresses))
 
-	errCount := 0
+	errCounter := 0
+	for _, addr := range addresses {
+		ctxInnr, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 
-	for i := 0; i < len(addresses); i++ {
-		v := addresses[i]
-		innerCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-
-		go func() {
-			str, err := client.Get(ctx, v)
+		go func(a string) {
+			res, err := client.Get(ctx, a)
 			if err != nil {
 				errCh <- err
 			} else {
-				resCh <- str
+				resCh <- res
 			}
-		}()
+		}(addr)
 
 		defer cancel()
-
 		select {
-		case <-innerCtx.Done():
+		case <-ctxInnr.Done():
 			select {
 			case <-ctx.Done():
 				return "", ctx.Err()
 			default:
 			}
-		case res := <-resCh:
-			return res, nil
+
 		case <-errCh:
-			errCount++
+			errCounter++
+			if errCounter == len(addresses) {
+				return "", ErrRequestsFailed
+			}
+		case v := <-resCh:
+			return v, nil
+
 		}
 
-		fmt.Println("innner", v)
-
-	}
-
-	if errCount == len(addresses) {
-		return "", ErrRequestsFailed
 	}
 
 	for {
 		select {
-		case v := <-resCh:
-			return v, nil
 		case <-errCh:
-			errCount++
-			if errCount == len(addresses) {
+			errCounter++
+			if errCounter == len(addresses) {
 				return "", ErrRequestsFailed
 			}
 		case <-ctx.Done():
 			return "", ctx.Err()
+
+		case v := <-resCh:
+			return v, nil
+
 		}
+
 	}
 }
