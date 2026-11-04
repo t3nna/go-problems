@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -20,12 +21,14 @@ type Job struct {
 // 2. Wait for all currently executing workers to finish before returning.
 // 3. Prevent any goroutine or channel leaks.
 func RunWorkerPool(ctx context.Context, workers int, jobs <-chan Job) error {
+	if workers <= 0 {
+		return fmt.Errorf("workers must be positive")
+	}
 
-	ctxC, cancel := context.WithCancel(ctx)
+	poolCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	var wg sync.WaitGroup
-
 	var errOnce sync.Once
 	var firstErr error
 
@@ -33,31 +36,38 @@ func RunWorkerPool(ctx context.Context, workers int, jobs <-chan Job) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
 			for {
 				select {
-				case val, ok := <-jobs:
+				case <-poolCtx.Done():
+					return
+				case job, ok := <-jobs:
 					if !ok {
 						return
 					}
-					if err := val.Execute(ctxC); err != nil {
+
+					// Avoid starting a received job if cancellation
+					// is already observable.
+					if poolCtx.Err() != nil {
+						return
+					}
+
+					if err := job.Execute(poolCtx); err != nil {
 						errOnce.Do(func() {
 							firstErr = err
+							cancel()
 						})
-
-						cancel()
-
+						return
 					}
-				case <-ctxC.Done():
-					return
-
 				}
-
 			}
 		}()
 	}
 
 	wg.Wait()
 
-	return firstErr
-
+	if firstErr != nil {
+		return firstErr
+	}
+	return ctx.Err()
 }
