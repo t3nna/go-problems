@@ -22,52 +22,54 @@ type Job struct {
 // 3. Prevent any goroutine or channel leaks.
 func RunWorkerPool(ctx context.Context, workers int, jobs <-chan Job) error {
 	if workers <= 0 {
-		return fmt.Errorf("workers must be positive")
+		return fmt.Errorf("workers should be greater then 0")
 	}
 
-	poolCtx, cancel := context.WithCancel(ctx)
+	pCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	errCh := make(chan error, 1)
 
 	var wg sync.WaitGroup
-	var errOnce sync.Once
-	var firstErr error
 
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-
 			for {
 				select {
-				case <-poolCtx.Done():
-					return
-				case job, ok := <-jobs:
+				case w, ok := <-jobs:
 					if !ok {
 						return
 					}
-
-					// Avoid starting a received job if cancellation
-					// is already observable.
-					if poolCtx.Err() != nil {
+					if pCtx.Err() != nil {
+						return
+					}
+					err := w.Execute(pCtx)
+					if err != nil {
+						select {
+						case errCh <- err:
+						default:
+						}
+						cancel()
 						return
 					}
 
-					if err := job.Execute(poolCtx); err != nil {
-						errOnce.Do(func() {
-							firstErr = err
-							cancel()
-						})
-						return
-					}
+				case <-pCtx.Done():
+					return
 				}
+
 			}
 		}()
+
 	}
 
 	wg.Wait()
 
-	if firstErr != nil {
-		return firstErr
+	select {
+	case err := <-errCh:
+		return err
+	default:
+		return ctx.Err()
 	}
-	return ctx.Err()
+
 }
