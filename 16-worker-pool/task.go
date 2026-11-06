@@ -27,7 +27,8 @@ func RunWorkerPool(ctx context.Context, workers int, jobs <-chan Job) error {
 
 	pCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	errCh := make(chan error, 1)
+	var once sync.Once
+	var pErr error
 
 	var wg sync.WaitGroup
 
@@ -46,10 +47,10 @@ func RunWorkerPool(ctx context.Context, workers int, jobs <-chan Job) error {
 					}
 					err := w.Execute(pCtx)
 					if err != nil {
-						select {
-						case errCh <- err:
-						default:
-						}
+						once.Do(func() {
+							pErr = err
+						})
+
 						cancel()
 						return
 					}
@@ -65,11 +66,10 @@ func RunWorkerPool(ctx context.Context, workers int, jobs <-chan Job) error {
 
 	wg.Wait()
 
-	select {
-	case err := <-errCh:
-		return err
-	default:
-		return ctx.Err()
+	if pErr != nil {
+		return pErr
 	}
+
+	return ctx.Err()
 
 }
