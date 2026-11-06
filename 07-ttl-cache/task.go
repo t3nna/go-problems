@@ -8,14 +8,17 @@ import (
 type TtlCache struct {
 	data map[string]*entry
 	heap minHeap
-	mu   sync.Mutex
+	mu   sync.RWMutex
 	stop chan struct{}
 	done chan struct{}
+	once sync.Once
 }
 
 func NewTtlCache() *TtlCache {
 	c := &TtlCache{
 		data: make(map[string]*entry),
+		stop: make(chan struct{}),
+		done: make(chan struct{}),
 	}
 
 	go c.clear()
@@ -29,7 +32,7 @@ func (c *TtlCache) Set(key string, value string, ttl time.Duration) {
 
 	oldEntry, ok := c.data[key]
 	if ok && oldEntry.index >= 0 {
-		// remove because it can have other value + ttl which changes postion in heap
+		// Remove the old expiration before inserting the replacement.
 		c.heap.remove(oldEntry.index)
 	}
 
@@ -48,6 +51,9 @@ func (c *TtlCache) Set(key string, value string, ttl time.Duration) {
 }
 
 func (c *TtlCache) Get(key string) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	e, ok := c.data[key]
 	if !ok || (!e.expiresAt.IsZero() && !time.Now().Before(e.expiresAt)) {
 		return "", false
@@ -63,13 +69,17 @@ func (c *TtlCache) Delete(key string) {
 	if !ok {
 		return
 	}
-	c.heap.remove(e.index)
+	if e.index >= 0 {
+		c.heap.remove(e.index)
+	}
 	delete(c.data, key)
 
 }
 
 func (c *TtlCache) Stop() {
-	close(c.stop)
+	c.once.Do(func() {
+		close(c.stop)
+	})
 	<-c.done
 }
 
@@ -93,12 +103,14 @@ func (c *TtlCache) removeExpired() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for c.heap.length() < 0 {
+	now := time.Now()
+	for c.heap.length() > 0 {
 		e := c.heap.peek()
 
-		if time.Now().Before(e.expiresAt) {
+		if now.Before(e.expiresAt) {
 			return
 		}
-		c.Delete(e.key)
+		c.heap.deleteMin()
+		delete(c.data, e.key)
 	}
 }

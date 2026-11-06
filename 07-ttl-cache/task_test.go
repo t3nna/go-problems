@@ -231,3 +231,27 @@ func TestTtlUpdates(t *testing.T) {
 		t.Errorf("Expected 'permanent', got '%s'", val)
 	}
 }
+
+func TestRemoveExpiredPreservesLiveEntries(t *testing.T) {
+	cache := NewTtlCache()
+	defer cache.Stop()
+
+	cache.Set("expired", "old", time.Nanosecond)
+	cache.Set("updated", "old", time.Nanosecond)
+	cache.Set("updated", "new", time.Hour)
+	cache.Set("permanent", "value", 0)
+	cache.removeExpired()
+
+	if _, ok := cache.data["expired"]; ok {
+		t.Error("expired entry should be removed from the map")
+	}
+	if value, ok := cache.Get("updated"); !ok || value != "new" {
+		t.Error("updated entry should survive cleanup")
+	}
+	if value, ok := cache.Get("permanent"); !ok || value != "value" {
+		t.Error("permanent entry should survive cleanup")
+	}
+	if cache.heap.length() != 1 {
+		t.Errorf("expected one live expiration in heap, got %d", cache.heap.length())
+	}
+}
