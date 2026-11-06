@@ -13,6 +13,10 @@ type minHeap struct {
 	h []*entry
 }
 
+func (h *minHeap) length() int {
+	return len(h.h)
+}
+
 func (h *minHeap) peek() *entry {
 	if len(h.h) == 0 {
 		return nil
