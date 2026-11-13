@@ -13,18 +13,18 @@ func main() {
 
 	listener, err := net.Listen("tcp", ":42069")
 	if err != nil {
-		log.Fatalf("error", "error", err)
+		log.Fatalf("listen: %v", err)
 	}
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Fatalf("error", "error", err)
+			log.Fatalf("accept: %v", err)
 		}
 
 		req, err := request.RequestFromReader(conn)
 		if err != nil {
-			log.Fatalf("error", "error", err)
+			log.Fatalf("parse request: %v", err)
 		}
 
 		fmt.Printf("Request line:\n- Method: %s\n- Target: %s\n- Version: %s\n", req.RequestLine.Method, req.RequestLine.RequestTarget, req.RequestLine.HttpVersion)
